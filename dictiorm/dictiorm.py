@@ -260,7 +260,12 @@ class Document(dict):
 
     def update_database(self):
         if self.always_access_db == True:
-            self.update_first(dict(self), self.unique_identifier)
+            required_fields = self.validators.keys()
+            if all(field in dict(self) for field in required_fields):
+                self.update_first(dict(self), self.unique_identifier)
+            else:
+                missing_fields = set(required_fields) - set( dict(self) )
+                raise ValueError('Validation failed. Not all the required fields are present. Missing: ' + str(missing_fields))
 
 
 
