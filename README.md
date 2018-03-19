@@ -20,8 +20,8 @@ True
 
 - And you still have access to document cache/update, find/count, and **validation**.
 ```python
->>> req_fields = { 'username': lambda x: type(x)==str, 'status': lambda x: type(x)==str }
->>> user_info = dictiorm.Document(collection, {'username': 'user0'}, required_fields=req_fields)
+>>> validation_funcs = { 'username': lambda x: type(x)==str, 'status': lambda x: type(x)==str }
+>>> user_info = dictiorm.Document(collection, {'username': 'user0'}, validators=validation_funcs)
 ...
 >>> user_info.pop('status')  # 'status' was popped, as it is a required field, it will fail validation
 ValueError: Validation failed. Results: {'username': True, 'status': False}

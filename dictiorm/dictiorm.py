@@ -57,7 +57,13 @@ def combine(recent_data, past_data):
 
 class Document(dict):
 
-    __slots__ = ('collection_connection', 'unique_identifier', 'required_fields', 'always_access_db')
+    __slots__ = ('collection_connection',
+                 'unique_identifier',
+                 'validators',
+                 'only_validated_fields',
+                 'always_access_db'
+                )
+
 
 
     # -------------------------------------------------------------------------
@@ -68,33 +74,41 @@ class Document(dict):
     def _process_args(mapping=(), **kwargs):
         if hasattr(mapping, items):
             mapping = getattr(mapping, items)()
-        return ((key, value) for key, value in chain(mapping, getattr(kwargs, items)()))
+        return {key: value for key, value in chain(mapping, getattr(kwargs, items)())}
 
 
 
-    def __init__(self, collection_connection, unique_identifier, initial_values={}, required_fields={}, always_access_db=True, mapping=()):
-        for key in unique_identifier:
-            initial_values[key] = unique_identifier[key]
-
-        super(Document, self).__init__(self._process_args(mapping, **initial_values))
-
+    def __init__(self, collection_connection, unique_identifier, initial_values={}, validators={}, only_validated_fields=False, always_access_db=True, mapping=()):
         self.collection_connection = collection_connection
         self.unique_identifier = unique_identifier
-        self.required_fields = required_fields
+        self.validators = validators
+        self.only_validated_fields = only_validated_fields
         self.always_access_db = always_access_db
+
+        self.validators['_id'] = lambda x: type(x)==str
+
+
+        initial_values = combine(unique_identifier, initial_values)
+        valid, valid_fields, invalid_fields = self.validate(initial_values)
+
+        if invalid_fields:
+            raise ValueError('Init validation failed. Conflicting fields: ' + str(invalid_fields))
+
+        super(Document, self).__init__(self._process_args(mapping, **valid_fields))
+
 
         database_data = self.find_first(self.unique_identifier)
         if database_data:
             super(Document, self).__setitem__('_id', database_data['_id'])
-            self.unique_identifier = {'_id': self['_id']}
+            self.unique_identifier = {'_id': dict(self)['_id']}
             if dict(self) != database_data:
                 updated_data = combine(dict(self), database_data)
                 for key in updated_data:
                     super(Document, self).__setitem__(key, updated_data[key])
-                self.update_first(dict(self), _id=self['_id'])
+                self.update_database()
         else:
             super(Document, self).__setitem__('_id', self.insert_document(dict(self)))
-            self.unique_identifier = {'_id': self['_id']}
+            self.unique_identifier = {'_id': dict(self)['_id']}
 
 
 
@@ -106,7 +120,13 @@ class Document(dict):
 
     def __setitem__(self, key, value):
         self.update_memory()
-        super(Document, self).__setitem__(key, value)
+
+        valid, valid_fields, invalid_fields = self.validate({key: value})
+        if valid:
+            super(Document, self).__setitem__(key, value)
+        else:
+            raise ValueError('Validation failed. Cannot set: ' + str(invalid_fields))
+
         return self.update_database()
 
 
@@ -126,7 +146,13 @@ class Document(dict):
 
     def setdefault(self, key, default=None):
         self.update_memory()
-        super(Document, self).setdefault(key, default)
+
+        valid, valid_fields, invalid_fields = self.validate({key: default})
+        if valid:
+            super(Document, self).setdefault(key, default)
+        else:
+            raise ValueError('Validation failed. Provided key/default is not valid: ' + str(invalid_fields))
+            
         return self.update_database()
 
 
@@ -143,9 +169,14 @@ class Document(dict):
 
 
     def update(self, mapping=(), **kwargs):
+        new_dict = self._process_args(mapping, **kwargs)
         self.update_memory()
-        super(Document, self).update(self._process_args(mapping, **kwargs))
+
+        valid, valid_fields, invalid_fields = self.validate(new_dict)
+        super(Document, self).update(valid_fields)
         self.update_database()
+        if invalid_fields:
+            raise ValueError('New elements validation failed. Conflicting fields: ' + str(invalid_fields))
 
 
 
@@ -226,27 +257,35 @@ class Document(dict):
                 super(Document, self).__setitem__(db_key, database_data[db_key])
 
 
+
     def update_database(self):
         if self.always_access_db == True:
-            valid, result = self.validate()
-            if valid:
-                self.update_first(dict(self), self.unique_identifier)
+            self.update_first(dict(self), self.unique_identifier)
+
+
+
+    def validate(self, data={}):
+        if not data:
+            data = dict(self)
+
+        valid_fields = {}
+        invalid_fields = {}
+        valid = True
+
+        for key in data:
+            if key in self.validators:
+                if self.validators[key]( data[key] ):
+                    valid_fields[key] = data[key]
+                else:
+                    invalid_fields[key] = data[key]
+                    valid = False
+
+            elif self.only_validated_fields == True:
+                invalid_fields[key] = data[key]
+                valid = False
+
             else:
-                raise ValueError('Validation failed. Results: ' + str(result))
+                valid_fields[key] = data[key]
 
+        return valid, valid_fields, invalid_fields
 
-    def validate(self):
-        # for key in self.required_fields:
-        #     if not ( type(dict(self)[key]) == self.required_fields[key] ):
-        #         return False
-        # return True
-
-        result = {}
-        for key in self.required_fields:
-            if key in dict(self) and self.required_fields[key]( dict(self)[key] ):
-                result[key] = True
-            else:
-                result[key] = False
-
-        valid = all(result[key] for key in result)
-        return valid, result
