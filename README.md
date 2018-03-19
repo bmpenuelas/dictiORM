@@ -4,7 +4,7 @@ It's a dict... It's an ORM... It's dictiORM!
 A tiny MongoDB ORM that takes zero time to setup because docs become simple dicts.
 ----------------------------------------------------------------------------------
 
-- Use your database documents **like a simple dictionary variable**.
+- Use your database documents **like a simple dictionary variable**. Even in functions that expect a dict!
 ```python
 >>> user_info = dictiorm.Document(collection, {'username': 'user0'})
 >>> isinstance(user_info, dict)
@@ -24,5 +24,5 @@ True
 >>> user_info = dictiorm.Document(collection, {'username': 'user0'}, validators=validation_funcs)
 ...
 >>> user_info.pop('status')  # 'status' was popped, as it is a required field, it will fail validation
-ValueError: Validation failed. Results: {'username': True, 'status': False}
+ValueError: Validation failed. Not all the required fields are present. Missing: {'status'}
 ```
