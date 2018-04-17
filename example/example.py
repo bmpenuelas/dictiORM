@@ -8,7 +8,7 @@
 
 import dictiorm
 
-from   ct_backend.common       import mongo_connector
+from   backend_lib.common       import mongo_connector
 
 
 user_data = mongo_connector.UserData() # Use your own connector
@@ -17,7 +17,8 @@ collection = user_data.db['user_info'] # to the desired DB collection.
 
 
 
-# Simplest use case
+#%% Example 1
+#   Simplest use case
 unique_identifier = {'username': 'user0'}
 user_info = dictiorm.Document(collection, unique_identifier)
 
@@ -33,10 +34,11 @@ print(user_info['age'])  # Changes are automatically validated and saved in the 
 
 
 
-# Extended use case
+#%% Example 2
+#   Extended use case
 
-unique_identifier = {'username': 'user0'}
-initial_values = {'doc_type': 'basic_user_info', 'status': 'registered'} # Fill the doc with additional fields.
+unique_identifier = {'username': 'user1'}
+initial_values = {'status': 'registered'} # Fill the doc with additional fields.
 validators = { 'username': lambda x: type(x)==str,
                'status': lambda x: type(x)==str
              }  # If you want to perform validation you are completely free to define the data validation
@@ -49,6 +51,9 @@ always_access_db = True  # You decide if every local modification is mirrored in
 user_info = dictiorm.Document(collection, unique_identifier, initial_values, validators, only_validated_fields, always_access_db)
 
 
-print(isinstance(user_info, dict))
+print(user_info) # No problem, only contains validated fields.
 
-print(user_info)
+user_info['age'] = 26 # 'only_validated_fields' is set, so validation fails and the 'age' field is never created.
+
+print(user_info) # 'age' was not set.
+

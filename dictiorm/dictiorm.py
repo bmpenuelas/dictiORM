@@ -239,7 +239,7 @@ class Document(dict):
             result = self.collection_connection.find_one_and_replace({'_id': ObjectId(_id)}, update, upsert=True, return_document=ReturnDocument.AFTER)
         else:
             if not filter:
-                raise ValueError('Failed to update, need _id or filter to update document.')
+                raise ValueError('Failed to update, _id or filter needed to update document.')
             result = self.collection_connection.find_one_and_replace(filter, update, upsert=True, return_document=ReturnDocument.AFTER)
         return id_to_str(result)
 
