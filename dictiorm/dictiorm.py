@@ -253,8 +253,9 @@ class Document(dict):
     def update_memory(self):
         if self.always_access_db == True:
             database_data = self.find_first(self.unique_identifier)
-            for db_key in database_data:
-                super(Document, self).__setitem__(db_key, database_data[db_key])
+            if database_data:
+                for db_key in database_data:
+                    super(Document, self).__setitem__(db_key, database_data[db_key])
 
 
 
@@ -294,3 +295,13 @@ class Document(dict):
 
         return valid, valid_fields, invalid_fields
 
+    def delete(self):
+        del_filter = self.unique_identifier
+
+        if '_id' in del_filter:
+            del_filter = {'_id': ObjectId(del_filter['_id'])}
+
+        result = self.collection_connection.delete_one( del_filter );
+
+        if result.deleted_count != 1:
+            raise ValueError('Deleted %d items, not one.' % result.deleted_count)

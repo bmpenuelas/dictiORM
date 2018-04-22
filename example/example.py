@@ -54,6 +54,7 @@ user_info = dictiorm.Document(collection, unique_identifier, initial_values, val
 print(user_info) # No problem, only contains validated fields.
 
 user_info['age'] = 26 # 'only_validated_fields' is set, so validation fails and the 'age' field is never created.
-
 print(user_info) # 'age' was not set.
 
+
+user_info.delete() # Remove the document from the database. Removal of the object in memory is performed automatically by Python's garbage collection.

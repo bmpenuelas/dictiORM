@@ -13,9 +13,9 @@ True
 
 - You **do not have to predefine models**, in compliance with with MongoDB philosophy of variable document structure.
 ```python
->>> user_info['age'] = 26  # Create a new field, it is automatically added to the DB
+>>> user_info['age'] = 26  # Create a new field, it is automatically added to the DB.
 ...
->>> print(user_info['status']) # Access a field that exists in the DB even if you dit not explicitly declare it
+>>> print(user_info['status']) # Access a field that exists in the DB even if you dit not explicitly declare it.
 ```
 
 - And you still have access to document cache/update, find/count, and **validation**.
@@ -23,7 +23,7 @@ True
 >>> validation_funcs = { 'username': lambda x: type(x)==str, 'status': lambda x: type(x)==str }
 >>> user_info = dictiorm.Document(collection, {'username': 'user0'}, validators=validation_funcs)
 ...
->>> user_info.pop('status')  # 'status' was popped, as it is a required field, it will fail validation
+>>> user_info.pop('status')  # 'status' was popped. As it is a required field, it will fail validation.
 ValueError: Validation failed. Not all the required fields are present. Missing: {'status'}
 ```
   
@@ -102,6 +102,9 @@ Additional functionalities
   - yourDoc.update_memory() to read the database and apply changes to your local object.
   - yourDoc.update_database() to upload local modifications to the database.
   
+  
+  
+* `yourDoc.delete()` Remove the document from the database. Removal of the object in memory is performed automatically by Python's garbage collection.
   
   
   
