@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """dictiORM
 
-   A tiny MongoDB ORM that takes zero time to setup because all objects are dictionaries.
+   A tiny MongoDB ORM that takes zero time to setup because
+   all the objects are dictionaries.
 
 
    ReadME and latest sources:
@@ -55,10 +56,15 @@ def combine(recent_data, past_data):
 # DictiORM classes
 ###############################################################################
 
+# -------------------------------------------------------------------------
+# Single document uniquely identified inside a collection.
+# -------------------------------------------------------------------------
+
 class Document(dict):
 
     __slots__ = ('collection_connection',
                  'unique_identifier',
+                 'initial_values',
                  'validators',
                  'only_validated_fields',
                  'always_access_db'
@@ -78,21 +84,25 @@ class Document(dict):
 
 
 
-    def __init__(self, collection_connection, unique_identifier, initial_values={}, validators={}, only_validated_fields=False, always_access_db=True, mapping=()):
+    def __init__(self, collection_connection, unique_identifier, initial_values={},
+                 validators={}, only_validated_fields=False, always_access_db=True,
+                 mapping=()):
         self.collection_connection = collection_connection
         self.unique_identifier = unique_identifier
-        self.validators = validators
+        self.initial_values = initial_values if initial_values else {}
+        self.validators = validators if validators else {}
         self.only_validated_fields = only_validated_fields
         self.always_access_db = always_access_db
 
         self.validators['_id'] = lambda x: type(x)==str
 
 
-        initial_values = combine(unique_identifier, initial_values)
-        valid, valid_fields, invalid_fields = self.validate(initial_values)
+        combined_initial_values = combine(self.unique_identifier, self.initial_values)
+        valid, valid_fields, invalid_fields = self.validate(combined_initial_values)
 
         if invalid_fields:
             raise ValueError('Init validation failed. Conflicting fields: ' + str(invalid_fields))
+
 
         super(Document, self).__init__(self._process_args(mapping, **valid_fields))
 
@@ -107,7 +117,8 @@ class Document(dict):
                     super(Document, self).__setitem__(key, updated_data[key])
                 self.update_database()
         else:
-            super(Document, self).__setitem__('_id', self.insert_document(dict(self)))
+            new_id = self.insert_document(dict(self))
+            super(Document, self).__setitem__('_id', new_id)
             self.unique_identifier = {'_id': dict(self)['_id']}
 
 
@@ -152,7 +163,7 @@ class Document(dict):
             super(Document, self).setdefault(key, default)
         else:
             raise ValueError('Validation failed. Provided key/default is not valid: ' + str(invalid_fields))
-            
+
         return self.update_database()
 
 
@@ -217,30 +228,30 @@ class Document(dict):
 
 
 
-    def find_first(self, filter={}, _id=None):
-        if '_id' in filter:
-            result = self.collection_connection.find_one({'_id':ObjectId(filter['_id'])})
+    def find_first(self, doc_filter={}, _id=None):
+        if '_id' in doc_filter:
+            result = self.collection_connection.find_one({'_id':ObjectId(doc_filter['_id'])})
             return id_to_str(result)
         elif _id:
             result = self.collection_connection.find_one({'_id':ObjectId(_id)})
             return id_to_str(result)
         else:
-            result = self.collection_connection.find_one(filter)
+            result = self.collection_connection.find_one(doc_filter)
             return id_to_str(result)
 
 
 
-    def update_first(self, update, filter={}, _id=None):
+    def update_first(self, update, doc_filter={}, _id=None):
         update.pop('_id', None)
 
-        if '_id' in filter:
-            result = self.collection_connection.find_one_and_replace({'_id': ObjectId(filter['_id'])}, update, upsert=True, return_document=ReturnDocument.AFTER)
+        if '_id' in doc_filter:
+            result = self.collection_connection.find_one_and_replace({'_id': ObjectId(doc_filter['_id'])}, update, upsert=True, return_document=ReturnDocument.AFTER)
         elif _id:
             result = self.collection_connection.find_one_and_replace({'_id': ObjectId(_id)}, update, upsert=True, return_document=ReturnDocument.AFTER)
         else:
-            if not filter:
-                raise ValueError('Failed to update, _id or filter needed to update document.')
-            result = self.collection_connection.find_one_and_replace(filter, update, upsert=True, return_document=ReturnDocument.AFTER)
+            if not doc_filter:
+                raise ValueError('Failed to update, _id or doc_filter needed to update document.')
+            result = self.collection_connection.find_one_and_replace(doc_filter, update, upsert=True, return_document=ReturnDocument.AFTER)
         return id_to_str(result)
 
 
@@ -305,3 +316,26 @@ class Document(dict):
 
         if result.deleted_count != 1:
             raise ValueError('Deleted %d items, not one.' % result.deleted_count)
+
+
+
+# -------------------------------------------------------------------------
+# Group of documents inside a collection with some fields in common.
+# -------------------------------------------------------------------------
+
+class Group():
+    def __init__(self, collection_connection, doc_filter):
+        self.collection_connection = collection_connection
+        self.doc_filter = doc_filter
+
+        self.docs = []
+
+        self.update_memory()
+
+
+
+    def update_memory(self):
+        for document in self.collection_connection.find(filter=self.doc_filter):
+            doc_unique_identifier = {'_id': str(document['_id'])}
+            new_document = Document(self.collection_connection, doc_unique_identifier)
+            self.docs.append(new_document)
