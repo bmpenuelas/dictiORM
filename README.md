@@ -109,5 +109,5 @@ Additional functionalities
   
   
   
-v0.1 - Pretty functional proof of concept release. More features to come! Questions, comments and contributions always welcome  : )
+v0.2 - Add `Group` class to hold several docs that share some features. More features to come! Questions, comments and contributions always welcome  : )
   

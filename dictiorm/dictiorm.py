@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """dictiORM
 
    A tiny MongoDB ORM that takes zero time to setup because
@@ -9,12 +8,11 @@
    https://github.com/bmpenuelas/dictiORM
 """
 
-import pymongo
-from   pymongo.collection import ReturnDocument
-from   bson.objectid      import ObjectId
+from pymongo.collection import ReturnDocument
+from bson.objectid      import ObjectId
+from itertools          import chain
 
-from   itertools import chain
-
+from dictiorm.utils     import (database_connection, combine, id_to_str)
 
 
 
@@ -33,27 +31,52 @@ _RaiseKeyError = object()
 
 
 
+###############################################################################
+# Database Connection
+###############################################################################
+
+class Connection():
+
+    def __init__(self, url, port, database_name, user, password):
+        self.url = url
+        self.port = port
+        self.database_name = database_name
+        self.user = user
+        self.password = password
+
+        self.db = database_connection(url, port, database_name, user, password)
+
+
+
+    def __getattr__(self, attr):
+        return self.db[attr]
+
+    def __getitem__(self, index):
+        return self.db[index]
+
+
+    def insert_document(self, collection, document):
+        return str(self.db[collection].insert_one(document).inserted_id)
+
+
+
+    def update_first(self, collection, filter, update):
+        return self.db[collection].find_one_and_replace(filter, update, upsert=True, return_document=ReturnDocument.AFTER)
+
+
+
+    def find_first(self, collection, filter):
+        return self.db[collection].find_one(filter)
+
+
+
+    def find_all(self, collection, filter):
+        return self.db[collection].find(filter=filter)
+
+
 
 ###############################################################################
-# Generic helper functions
-###############################################################################
-
-def id_to_str(document):
-    if document and '_id' in document:
-        document['_id'] = str(document['_id'])
-    return document
-
-
-
-def combine(recent_data, past_data):
-    result = past_data
-    for key in recent_data:
-        result[key] = recent_data[key]
-    return result
-
-
-###############################################################################
-# DictiORM classes
+# DictiORM
 ###############################################################################
 
 # -------------------------------------------------------------------------
@@ -68,7 +91,7 @@ class Document(dict):
                  'validators',
                  'only_validated_fields',
                  'always_access_db'
-                )
+    )
 
 
 
@@ -84,13 +107,13 @@ class Document(dict):
 
 
 
-    def __init__(self, collection_connection, unique_identifier, initial_values={},
-                 validators={}, only_validated_fields=False, always_access_db=True,
+    def __init__(self, collection_connection, unique_identifier, initial_values=None,
+                 validators=None, only_validated_fields=False, always_access_db=True,
                  mapping=()):
         self.collection_connection = collection_connection
         self.unique_identifier = unique_identifier
-        self.initial_values = initial_values if initial_values else {}
-        self.validators = validators if validators else {}
+        self.initial_values = initial_values or {}
+        self.validators = validators or {}
         self.only_validated_fields = only_validated_fields
         self.always_access_db = always_access_db
 
@@ -101,7 +124,8 @@ class Document(dict):
         valid, valid_fields, invalid_fields = self.validate(combined_initial_values)
 
         if invalid_fields:
-            raise ValueError('Init validation failed. Conflicting fields: ' + str(invalid_fields))
+            raise ValueError('Init validation failed. Conflicting fields: '\
+                             + str(invalid_fields))
 
 
         super(Document, self).__init__(self._process_args(mapping, **valid_fields))
@@ -162,7 +186,8 @@ class Document(dict):
         if valid:
             super(Document, self).setdefault(key, default)
         else:
-            raise ValueError('Validation failed. Provided key/default is not valid: ' + str(invalid_fields))
+            raise ValueError('Validation failed. Provided key/default is not valid: '\
+                             + str(invalid_fields))
 
         return self.update_database()
 
@@ -187,7 +212,8 @@ class Document(dict):
         super(Document, self).update(valid_fields)
         self.update_database()
         if invalid_fields:
-            raise ValueError('New elements validation failed. Conflicting fields: ' + str(invalid_fields))
+            raise ValueError('New elements validation failed. Conflicting fields: '\
+                             + str(invalid_fields))
 
 
 
@@ -216,7 +242,6 @@ class Document(dict):
 
 
 
-
     # -------------------------------------------------------------------------
     # Typical accesses
     # -------------------------------------------------------------------------
@@ -228,7 +253,9 @@ class Document(dict):
 
 
 
-    def find_first(self, doc_filter={}, _id=None):
+    def find_first(self, doc_filter=None, _id=None):
+        doc_filter = doc_filter or {}
+
         if '_id' in doc_filter:
             result = self.collection_connection.find_one({'_id':ObjectId(doc_filter['_id'])})
             return id_to_str(result)
@@ -241,19 +268,35 @@ class Document(dict):
 
 
 
-    def update_first(self, update, doc_filter={}, _id=None):
+    def update_first(self, update, doc_filter=None, _id=None):
+        doc_filter = doc_filter or {}
+
         update.pop('_id', None)
 
         if '_id' in doc_filter:
-            result = self.collection_connection.find_one_and_replace({'_id': ObjectId(doc_filter['_id'])}, update, upsert=True, return_document=ReturnDocument.AFTER)
+            result = self.collection_connection.find_one_and_replace(
+                {'_id': ObjectId(doc_filter['_id'])},
+                update,
+                upsert=True,
+                return_document=ReturnDocument.AFTER
+            )
         elif _id:
-            result = self.collection_connection.find_one_and_replace({'_id': ObjectId(_id)}, update, upsert=True, return_document=ReturnDocument.AFTER)
+            result = self.collection_connection.find_one_and_replace(
+                {'_id': ObjectId(_id)},
+                update,
+                upsert=True,
+                return_document=ReturnDocument.AFTER
+            )
         else:
             if not doc_filter:
-                raise ValueError('Failed to update, _id or doc_filter needed to update document.')
-            result = self.collection_connection.find_one_and_replace(doc_filter, update, upsert=True, return_document=ReturnDocument.AFTER)
+                raise ValueError('Failed to update, _id or doc_filter needed.')
+            result = self.collection_connection.find_one_and_replace(
+                doc_filter,
+                update,
+                upsert=True,
+                return_document=ReturnDocument.AFTER
+            )
         return id_to_str(result)
-
 
 
 
@@ -277,13 +320,13 @@ class Document(dict):
                 self.update_first(dict(self), self.unique_identifier)
             else:
                 missing_fields = set(required_fields) - set( dict(self) )
-                raise ValueError('Validation failed. Not all the required fields are present. Missing: ' + str(missing_fields))
+                raise ValueError('Validation failed. Not all the required fields \
+                                  are present. Missing: ' + str(missing_fields))
 
 
 
-    def validate(self, data={}):
-        if not data:
-            data = dict(self)
+    def validate(self, data=None):
+        data = data or dict(self)
 
         valid_fields = {}
         invalid_fields = {}
@@ -305,6 +348,8 @@ class Document(dict):
                 valid_fields[key] = data[key]
 
         return valid, valid_fields, invalid_fields
+
+
 
     def delete(self):
         del_filter = self.unique_identifier

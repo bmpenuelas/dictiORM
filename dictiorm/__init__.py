@@ -1,1 +1,2 @@
-from .dictiorm import *
+from dictiorm.dictiorm import *
+from dictiorm.utils import *
