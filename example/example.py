@@ -12,7 +12,7 @@ import dictiorm
 # Connect to your database
 database_credentials = {'url': url, 'port': port, 'database_name': database_name,
                         'user': user, 'password': password}
-collection_name = 'user_info'
+collection_name = 'users_info'
 collection = dictiorm.Connection(**database_credentials)[collection_name]
 
 
@@ -23,26 +23,26 @@ collection = dictiorm.Connection(**database_credentials)[collection_name]
 
 unique_identifier = {'username': 'user0'}  # Select the feature(s) that make your document unique
 
-user_info = dictiorm.Document(collection, unique_identifier)  # Create the magic dictiORM dictionary
+user0_info = dictiorm.Document(collection, unique_identifier)  # Create the magic dictiORM dictionary
 
 
-print('Is dictionary? ' + str( isinstance(user_info, dict)) )  # You can use a dictiORM object with
-                                                               # functions that expect dicts
+print('Is dictionary? ' + str( isinstance(user0_info, dict)) )  # You can use a dictiORM object with
+                                                                # functions that expect dicts
 
-user_info['age'] = 25  # Assign new or existing fields as you would with a dictionary, changes are
-                       # saved to the database
-print(user_info['age'])  # Read a field from the dictionary, the value is read from the database
+user0_info['age'] = 25  # Assign new or existing fields as you would with a dictionary, changes are
+                        # saved to the database
+print(user0_info['age'])  # Read a field from the dictionary, the value is read from the database
 
 
 
 
 #%% Example 2
-#   Extended use case
+#   Extended use case using validators
 
 unique_identifier = {'username': 'user1'}  # Select the feature(s) that make your document unique
-initial_values = {'status': 'registered'}  # Fill the doc with additional initial fields
+initial_values = {'age': 18}  # Fill the doc with additional initial fields
 validators = { 'username': lambda x: type(x)==str,  # If you want to perform validation, you are
-               'status': lambda x: type(x)==str}    # completely free to define the data validation
+               'age': lambda x: x>0}                # completely free to define the data validation
                                                     # functions for as many fields as you want and
                                                     # only in the instances that you want
 only_validated_fields = True  # Choose variable document structure like MongoDB and dicts,
@@ -50,18 +50,23 @@ only_validated_fields = True  # Choose variable document structure like MongoDB 
 always_access_db = True  # You decide if every local modification is mirrored in the DB or synced manually
 
 
-user_info = dictiorm.Document(collection, unique_identifier, initial_values, validators, only_validated_fields, always_access_db)
+user1_info = dictiorm.Document(collection, unique_identifier, initial_values, validators, only_validated_fields, always_access_db)
 
-
-print(user_info)  # No problem, the dict only contains validated fields
 
 try:
-    user_info['age'] = 26  # 'only_validated_fields' is set, and the fields with validators are
-except ValueError as err:  # 'username' and 'status'. Since 'age' is not one of them, validation
-    print(err)             # fails and the 'age' field is never created
+    user1_info['age'] = -1  # The validator says that 'age' must be > 0, so this will fail
+except ValueError as err:   # and the value -1 will never be assigned
+    print(err)
 
-print(user_info)  # 'age' was not set
+print(user1_info)  # 'age' was not changed, it remains at it's initial value (18)
+
+try:
+    user1_info['country'] = 'Freedonia'  # 'only_validated_fields' is set, and the fields with
+except ValueError as err:                # validators are 'username', 'status' and 'age'. Since
+    print(err)                           # 'country' is not one of them, validation fails
+
+print(user1_info)  # The field 'country' was not created
 
 
-user_info.delete()  # Remove the document from the database (removal of the object in memory is
-                    # performed automatically by Python's garbage collection)
+user1_info.delete()  # Remove the document from the database (removal of the object in memory is
+                     # performed automatically by Python's garbage collection)
