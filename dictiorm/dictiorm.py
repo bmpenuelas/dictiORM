@@ -229,13 +229,6 @@ class Document(dict):
 
 
 
-    @classmethod
-    def fromkeys(cls, keys, v=None):
-        raise SyntaxError('Cannot use fromkeys, DB config parameters are needed.')
-        # return super(Document, cls).fromkeys((key for key in keys), v)
-
-
-
     def __repr__(self):
         self.update_memory()
         return '{0}({1})'.format(type(self).__name__, super(Document, self).__repr__())
@@ -334,7 +327,12 @@ class Document(dict):
 
         for key in data:
             if key in self.validators:
-                if self.validators[key]( data[key] ):
+                try:
+                    validation_passed = self.validators[key]( data[key] )
+                except:
+                    validation_passed = False
+
+                if validation_passed:
                     valid_fields[key] = data[key]
                 else:
                     invalid_fields[key] = data[key]
