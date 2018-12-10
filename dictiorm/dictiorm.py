@@ -36,6 +36,8 @@ _RaiseKeyError = object()
 ###############################################################################
 
 class Connection():
+    """ Connection to a database
+    """
 
     def __init__(self, url, port, database_name, user, password):
         self.url = url
@@ -48,11 +50,24 @@ class Connection():
 
 
 
+    def __repr__(self):
+        return 'Connection to database ' + self.database_name
+
+
+
     def __getattr__(self, attr):
         return self.db[attr]
 
+
+
     def __getitem__(self, index):
         return self.db[index]
+
+
+
+    def Collection(self, collection_name):
+        return Collection(self.db[collection_name])
+
 
 
     def insert_document(self, collection, document):
@@ -61,7 +76,8 @@ class Connection():
 
 
     def update_first(self, collection, filter, update):
-        return self.db[collection].find_one_and_replace(filter, update, upsert=True, return_document=ReturnDocument.AFTER)
+        return self.db[collection].find_one_and_replace(filter, update, upsert=True,
+                                               return_document=ReturnDocument.AFTER)
 
 
 
@@ -75,15 +91,42 @@ class Connection():
 
 
 
+class Collection():
+    """ Connection to a collection inside a database
+    """
+
+    def __init__(self, collection_connection):
+        self.collection_connection = collection_connection
+
+
+
+    def __repr__(self):
+        return 'Connection to collection ' + \
+               self.collection_connection.Collection.name.split('.')[0] + \
+               ' in database ' + \
+               self.collection_connection.Database.name.split('.')[0]
+
+
+
+    def Document(self, unique_identifier, initial_values=None, validators=None,
+                 only_validated_fields=False, always_access_db=True):
+        return Document(self.collection_connection, unique_identifier, initial_values,
+                        validators, only_validated_fields, always_access_db)
+
+
+
+    def Group(self, doc_filter):
+        return Group(self.collection_connection, doc_filter)
+
+
+
 ###############################################################################
 # DictiORM
 ###############################################################################
 
-# -------------------------------------------------------------------------
-# Single document uniquely identified inside a collection.
-# -------------------------------------------------------------------------
-
 class Document(dict):
+    """ Single document uniquely identified inside a collection
+    """
 
     __slots__ = ('collection_connection',
                  'unique_identifier',
@@ -229,6 +272,13 @@ class Document(dict):
 
 
 
+    @classmethod
+    def fromkeys(cls, keys, v=None):
+        raise SyntaxError('Cannot use fromkeys, DB config parameters are needed.')
+        # return super(Document, cls).fromkeys((key for key in keys), v)
+
+
+
     def __repr__(self):
         self.update_memory()
         return '{0}({1})'.format(type(self).__name__, super(Document, self).__repr__())
@@ -294,7 +344,7 @@ class Document(dict):
 
 
     # -------------------------------------------------------------------------
-    # Class methods
+    # Additional methods
     # -------------------------------------------------------------------------
 
     def update_memory(self):
@@ -362,17 +412,58 @@ class Document(dict):
 
 
 
-# -------------------------------------------------------------------------
-# Group of documents inside a collection with some fields in common.
-# -------------------------------------------------------------------------
-
 class Group():
+    """ Group of documents inside a collection with some fields in common
+    """
+
     def __init__(self, collection_connection, doc_filter):
+        self.docs = []
         self.collection_connection = collection_connection
         self.doc_filter = doc_filter
+        self.iter_index = 0
 
-        self.docs = []
 
+
+    def __repr__(self):
+        return 'Group of documents with fields ' + str(self.doc_filter) + \
+               ' in collection ' + \
+               self.collection_connection.Collection.name.split('.')[0] + \
+               ' in database ' + \
+               self.collection_connection.Database.name.split('.')[0]
+
+
+
+    def __iter__(self):
+        return self
+
+
+
+    def __next__(self):
+        if self.iter_index >= len(self.docs):
+            self.iter_index = 0
+            raise StopIteration
+        else:
+            doc = self.docs[self.iter_index]
+            self.iter_index += 1
+            return doc
+
+
+
+    def __getitem__(self, attr):
+        if isinstance(attr, int):
+            return self.docs[attr]
+        else:
+            raise AttributeError('Cannot index the docs list with ' + str(attr))
+
+
+
+    @property
+    def doc_filter(self):
+        return self._doc_filter
+
+    @doc_filter.setter
+    def doc_filter(self, value):
+        self._doc_filter = value
         self.update_memory()
 
 
@@ -382,3 +473,9 @@ class Group():
             doc_unique_identifier = {'_id': str(document['_id'])}
             new_document = Document(self.collection_connection, doc_unique_identifier)
             self.docs.append(new_document)
+
+
+
+    def delete_all(self):
+        for doc in self.docs:
+            doc.delete()
