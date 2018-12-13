@@ -10,19 +10,24 @@ Read and write the documents in your database like if you were using normal dict
 
 - All the database accesses are abstracted for you. **If you know how to use a Python dictionary, that's all you need to read and write a MongoDB database.**
 ```python
->>> user_info = collection.Document({'username': 'user0'})
+>>> user0_info = collection.Document({'username': 'user0'})
 ...
->>> user_info['age'] = 26  # Write a new field, or change its value
+>>> user0_info['age'] = 26  # Write a new field, or change its value
 ...
->>> print(user_info['status']) # Read a field in the DB even if you dit not explicitly declare it
+>>> print(user0_info['status'])  # Read a field in the DB even if you dit not explicitly declare it
 ```
 
 <br>
 
-- You **do not need to predefine models**, in compliance with with MongoDB philosophy of variable document structure. Use it even with functions that expect a dict!
+- You **do not need to predefine models**, in compliance with with MongoDB philosophy of variable document structure.
 ```python
->>> isinstance(user_info, dict)
-True
+>>> print(user0_info)
+Document({'username': 'user0', 'age': 26, 'status': 'on', 'height': 170})
+>>> print(user1_info)
+Document({'username': 'user1', 'status': 'on', 'points': 15})
+...
+>>> isinstance(user0_info, dict)
+True  # You can use it even with functions that expect a dict!
 ```
 
 <br>
@@ -30,9 +35,9 @@ True
 - And you still have access to document cache/update, find/count, all the methods of a dict variable and **validation**
 ```python
 >>> validation_funcs = { 'username': lambda x: type(x)==str, 'status': lambda x: x in ('on', 'off') }
->>> user_info = collection.Document({'username': 'user0'}, validators=validation_funcs)
+>>> user0_info = collection.Document({'username': 'user0'}, validators=validation_funcs)
 ...
->>> user_info.pop('status')  # 'status' was popped, since it is a required field, validation will fail
+>>> user0_info.pop('status')  # 'status' was popped, since it is a required field, validation will fail
 ValueError: Validation failed. Not all the required fields are present. Missing: {'status'}
 ```
 
@@ -52,31 +57,38 @@ ValueError: Validation failed. Not all the required fields are present. Missing:
 
 Simply put: **like you use a normal dictionary in Python**. You just need:
   * The field or fields and values used to select the specific document that you want.
-  <br>Example: `unique_identifier = {'customer_type': 'premium', username': 'user0'}`
+<br>  Example: `unique_identifier = {'username': 'user0'}`
 
-  * A connection to your database and the desired collection. This is made easy with:
-  <br>`connection = dictiorm.Connection(**database_credentials)`
-  <br>`collection = connection.Collection('collection_name')`
+  * A connection to your database and the desired collection \(you can use [a free MongoDB Atlas](https://www.mongodb.com/cloud/atlas/pricing) for testing\).
+<br>  `credentials = {'url': url, 'port': port, 'database_name': db_name, 'user': user, 'password': pass}`
+<br>  `connection = dictiorm.Connection(**credentials)`
+<br>  `collection = connection.Collection('info')`
 
 
-That's all you need to create a dictiORM object! It will behave like a **dictionary**, and data will be automagically mirrored in a database **document**!
+Now you can create, read or modify any number of documents! They will behave like a **dictionary**, and data will be automagically mirrored in the database **document**!
 
-`user_info = collection.Document(unique_identifier)`
+`user0_info = collection.Document(unique_identifier)`
 
 <br>
 <br>
 
-Now you can perform all the operations you are used to:
+Or, in a one-liner:
+<br>`user0_info = dictiorm.Connection(**credentials).Collection('info').Document({'username': 'user0'})`
 
-`user_info['gender'] ` Read a field that was stored in the database.
+<br>
+<br>
 
-`user_info['age'] = 27` Change the value of an existing field or create a new one.
+You can perform all the operations you are used to:
 
-`user_info.pop('age', None)` Remove a field and get it's value.
+`user0_info['gender'] ` Read a field that was stored in the database.
 
-`list(user_info)` Convert into a list.
+`user0_info['age'] = 27` Change the value of an existing field or create a new one.
 
-`user_info.keys()` Get the name of all the fields.
+`user0_info.pop('age', None)` Remove a field and get it's value.
+
+`list(user0_info)` Convert into a list.
+
+`user0_info.keys()` Get the name of all the fields.
 
 ...**and everything you can do with a regular dictionary!**
 Check out [the examples](/example) for more.
